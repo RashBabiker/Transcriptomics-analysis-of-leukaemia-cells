@@ -1,0 +1,202 @@
+---
+title: "Identificación de genes diferencialmente expresados"
+output: html_notebook
+---
+
+# librerias y datos de partida
+
+En los anteriores archivos se han preparado los datos crudos para poder hacer los análisis de expresión génica, son los siguientes:
+
+```{r librerias y datos de partida}
+library(arrayQualityMetrics)
+library(oligo)
+library(ggplot2)
+library(ggrepel)
+library(Biobase)
+load("archivos intermedios/raw.Rdata")
+```
+
+Vamos a continuar con el pipeline propuesto por el profesor.
+
+# Control de calidad de los datos crudos
+
+Ya tenemos las muestras en crudo, vamos a ver si tienen suficiente calidad para normalizar. Una mala calidad puede introducir tanto ruido que ni la normalizacion lo compensa.
+
+ArrayQualityMetrics genera boxplot, PCAs y más medidas para medir la variabilidad, y lo presenta en un informe. Dejo el código silenciado porque es computacionalmente costoso.
+
+Los resultados los deja en una carpeta que se puede especificar con el argumento outdir, el código esta silenciado porque tarda mazo.
+
+```{r eval=FALSE, message=FALSE, warning=FALSE}
+dir.create("informes calidad")
+dir.create("informes calidad/datos crudos")
+# arrayQualityMetrics(raw, outdir = "informes calidad/datos crudos", reporttitle = "Datos crudos")
+```
+
+En la carpeta correspondiente están los informes de calidad, el programa usa 3 métodos para detectar valores anormales (outliers): distancias entre arrays, boxplots y MA plots. En la siguiente imagen se resumen la presencia (x) o ausencia de outliers según cada método. Se aceptarán las muestras que presenten 0 o 1 x como valores aceptables.
+
+```{r echo=FALSE, fig.align="center", out.width="200px"}
+knitr::include_graphics("00 Resultados/control de calidad crudos.png")
+```
+
+Salvo CB4 todos los archivos parece correctos, sobre todo fallan en el MA plot que es un indicador de la calidad individual del array, esto puede indicar que los arrays tienen diferentes intensidades de fondo o por saturación de la señal, se recomienda consultar la seccion 4 del informe "Individual array quality" para más información.
+
+Para verlo mejor voy a hacer un análisis de componentes principales
+
+```{r}
+tabla <- exprs(raw)
+
+# escalar los datos es recomendable cuando no quieres que tengan más peso las variables con valores altos que las varaibles con valores bajos, como es este caso.
+PCA <- prcomp(t(tabla), scale=T) 
+PCs <- data.frame(PCA$x)
+
+# varianza explicada por cada componente
+summary(PCA)$importance
+screeplot(PCA)
+# con dos componentes se explica el 80% de la varianza, suficiente para hacernos una buena idea de como se distribuyen los patrones de expresión y una tercera dimensión apenas aporta nada, por tanto voy a representarlo en 2D.
+pc1<-round(summary(PCA)$importance[2,1]*100,1)
+pc2<-round(summary(PCA)$importance[2,2]*100,1)
+# pc3<-round(summary(PCA)$importance[2,3]*100,1)
+```
+
+
+```{r}
+grupo <- pData(raw)$group
+etiqueta <- pData(raw)$title
+
+# main plot
+ggplot(PCs,aes(x=PC1, y=PC2)) +
+  theme_classic() +
+  geom_hline(yintercept = 0, color = "gray70") +
+  geom_vline(xintercept = 0, color = "gray70") +
+  geom_point(aes(color = grupo), alpha = 0.55, size = 3) +
+  coord_cartesian(xlim = c(min(PCA$x[,1])-5,max(PCA$x[,1])+5)) +
+  geom_text_repel(aes(y = PC2 + 0.25, label = etiqueta),segment.size = 0.25, size = 3) +
+  labs(x = c(paste("PC1",pc1,"%")),y=c(paste("PC2",pc2,"%"))) +
+  ggtitle("PCA de datos crudos")+
+  theme(plot.title = element_text(hjust = 0.5)) +
+  # pongo colores fácilmente distinguibles por daltónicos
+  scale_color_manual(values= c("#1b9e77", "#d95f02", "#7570b3"))
+
+```
+
+El PCA nos muestra lo mismo que el análisis previo, CB4 muestra un patrón muy diferente a las otras células, quizás la normalización arregle estas diferencias, voy a probar a normalizar con y sin CB4 y me quedaré con lo que mejores resultados me de.
+
+# Normalización
+
+Se hace para poder comparar entre arrays, reduciendo el error entre muestras. Requiere 3 pasos, corregir ruido de fondo (background), normalizar y sumarizar. Normalmente se normaliza con rma (Robust Multichip Analysis).
+
+```{r Normalization}
+normalizados <- rma(raw) # devuelve las cuentas normalizadas como ExpressionSet
+write.csv(exprs(normalizados), file="./00 Resultados/datos normalizados.csv")
+save(normalizados, file="archivos intermedios/normalizados.Rdata")
+```
+
+aqui al final puedo poner un antes y después, esto es el antes de la normalizacion
+
+```{r BoxplotRaw, message=FALSE, fig.cap="Boxplot for arrays intensities (Raw Data)"}
+par(mfrow = c(1,2))
+boxplot(raw, cex.axis=0.5, las=2, 
+         col = c(rep("red", 12), rep("blue", 5), rep("green", 5)),
+         main="Distribución de los \n valores crudos")
+
+boxplot(normalizados, cex.axis=0.5, las=2, 
+         col = c(rep("red", 12), rep("blue", 5), rep("green", 5)),
+         main="Distribución de los \n valores normalizados")
+```
+
+# Control de calidad de los datos normalizados
+
+```{r eval=FALSE, message=FALSE, warning=FALSE}
+dir.create("informes calidad/datos normalizados")
+arrayQualityMetrics(normalizados, outdir = "informes calidad/datos normalizados", reporttitle = "Datos normalizados")
+```
+
+En la carpeta correspondiente están los informes de calidad, el programa usa 3 métodos para detectar valores anormales (outliers): distancias entre arrays, boxplots y MA plots. En la siguiente imagen se resumen la presencia (x) o ausencia de outliers según cada método. Se aceptarán las muestras que presenten 0 o 1 x como valores aceptables.
+
+```{r echo=FALSE, fig.align="center", out.width="200px"}
+knitr::include_graphics("00 Resultados/control de calidad normalizados.png")
+```
+
+Han mejorado todas las muestras, parece que CB4 se va a poder usar, confirmo con un PCA:
+
+```{r}
+tabla <- exprs(normalizados)
+
+# escalar los datos es recomendable cuando no quieres que tengan más peso las variables con valores altos que las varaibles con valores bajos, como es este caso.
+PCA <- prcomp(t(tabla), scale=T) 
+PCs <- data.frame(PCA$x)
+
+# varianza explicada por cada componente
+summary(PCA)$importance
+screeplot(PCA)
+# con dos componentes se explica el 80% de la varianza, suficiente para hacernos una buena idea de como se distribuyen los patrones de expresión y una tercera dimensión apenas aporta nada, por tanto voy a representarlo en 2D.
+pc1<-round(summary(PCA)$importance[2,1]*100,1)
+pc2<-round(summary(PCA)$importance[2,2]*100,1)
+pc3<-round(summary(PCA)$importance[2,3]*100,1)
+```
+
+```{r}
+grupo <- pData(normalizados)$group
+etiqueta <- pData(normalizados)$title
+
+# main plot
+ggplot(PCs,aes(x=PC1, y=PC2)) +
+  theme_classic() +
+  geom_hline(yintercept = 0, color = "gray70") +
+  geom_vline(xintercept = 0, color = "gray70") +
+  geom_point(aes(color = grupo), alpha = 0.55, size = 3) +
+  coord_cartesian(xlim = c(min(PCA$x[,1])-5,max(PCA$x[,1])+5)) +
+  geom_text_repel(aes(y = PC2 + 0.25, label = etiqueta),segment.size = 0.25, size = 3) +
+  labs(x = c(paste("PC1",pc1,"%")),y=c(paste("PC2",pc2,"%"))) +
+  ggtitle("PCA de datos normalizados")+
+  theme(plot.title = element_text(hjust = 0.5)) +
+  # pongo colores fácilmente distinguibles por daltónicos
+  scale_color_manual(values= c("#1b9e77", "#d95f02", "#7570b3"))
+
+```
+
+Tras la normalización se ve una separacion según los patrones de expresión mucho más clara. La muestra CB4 se agrupa con sus semejantes, siendo ahora más diferente las CB2.
+
+Parece que las celulas NLPHL se parecen más a las celulas sanas que las cHL. la muestra cHL5 muestra un patrón similar a NLPHL, pero expertos los han clasificado como cHL5 en base a otros criterios, en principio no hay motivos para sospechar que haya habido un error en los diagnósticos.
+
+La varianza explicada disminuye bastante respecto a la de los datos en crudo, es normal. En este caso si que parece que puede ser util una representación en 3D, para explicar el `r pc1+pc2+pc3`%. 
+
+```{r}
+library(rgl)
+
+rgl_init <- function(new.device = FALSE, bg = "white", width = 640) { #una funcion para iniciar rgl en un punto que me guste y no estar toqueteando con cada prueba
+  if( new.device | rgl.cur() == 0 ) {
+    rgl.open()
+    par3d(windowRect = 50 + c( 0, 0, width, width ) )
+    rgl.bg(color = bg )
+  }
+  rgl.clear(type = c("shapes", "bboxdeco"))
+  rgl.viewpoint(theta = 15, phi = 20, zoom = 0.5)
+}
+
+col <- c(rep("#d95f02", 12), rep("#7570b3",5), rep("#1b9e77",5))
+pData(normalizados)$title
+rgl_init()
+rgl.spheres(PCs$PC1, PCs$PC2, PCs$PC3, r = 3, color = col) #tips
+rgl.texts(PCs$PC1, PCs$PC2, PCs$PC3, r = 1, color = "black", text = pData(normalizados)$title, adj = c(1,1))
+rgl.lines(c(0, max(PCs$PC1)), c(0, 0), c(0, 0), color = "gray50")
+rgl.lines(c(0, min(PCs$PC1)), c(0, 0), c(0, 0), color = "gray50")
+rgl.lines(c(0, 0), c(0,max(PCs$PC2)), c(0, 0), color = "gray50")
+rgl.lines(c(0, 0), c(0,min(PCs$PC2)), c(0, 0), color = "gray50")
+rgl.lines(c(0, 0), c(0, 0), c(0,max(PCs$PC3)), color = "gray50")
+rgl.lines(c(0, 0), c(0, 0), c(0,min(PCs$PC3)), color = "gray50")
+rgl.texts(c(max(PCs$PC1),0,0), c(0,min(PCs$PC2),0), c(0,0,max(PCs$PC3)), size = 2, color = "black", text = c(paste("PC1 ",pc1), paste("PC2 ",pc2), paste("PC3 ",pc3)), adj = c(0.5,-0.5))
+# pongo un título
+rgl.texts(c(min(PCs$PC1)/2,max(PCs$PC2)/1.2,0), color = "blue", text = "PCA normalizado")
+
+rglwidget(width = 1000, height = 700)
+filename <- tempfile(fileext = ".html")
+# no me deja montarlo directamente en la carpeta de resultados
+htmlwidgets::saveWidget(rglwidget(), file = "PCA normalizado 3D.html")
+# así que lo muevo a mano
+file.copy("PCA normalizado 3D.html", "00 Resultados/PCA normalizado 3D.html", overwrite = T)
+file.remove("PCA normalizado 3D.html")
+browseURL("00 Resultados/PCA normalizado 3D.html")
+```
+
+Lo único notable es que los niveles de expresión de NLPHL5 y cHL5 son muy parecidos:

@@ -1,0 +1,50 @@
+---
+title: "PEC1"
+output: html_notebook
+---
+
+```{r results=F, message=F}
+library(oligo)
+library(Biobase)
+library(tidyverse)
+```
+
+```{r}
+list <- list.celfiles("Experimento usado/", full.names = TRUE) 
+# de los 67 archivos disponibles solo voy a usar los de los grupos ya comentados.
+targets <- read.csv("archivos intermedios/selected targets.csv", sep = ";") 
+
+# targets$geo_accession # tiene el nombre de los archivos que me interesan
+# los pongo en formato para grep lo entienda: con GSM312811|GSM312812 entiende que tiene que buscar GSM312811 y GSM312812
+pattern <- paste(targets$geo_accession, collapse = "|")
+list <- list[grepl(pattern, list)]
+
+# hay que poner los targets separados con ;, con comas da error, supongo que porque alguna variable la tenía... pero entonces no se por qué los targets normales si funcionaban con coma. 
+annotated_targets <-read.AnnotatedDataFrame("archivos intermedios/selected targets.csv", sep=";") 
+annotated_targets@data
+raw <- read.celfiles(list, phenoData = annotated_targets)
+```
+
+```{r}
+head(raw)
+
+pData(raw)
+
+#cambia los rownames (estan en el mismo orden, ordenados por nombre de fila)
+rownames(pData(raw)) <- pData(raw)$title
+# cambia nombres de columna
+colnames(raw) <- pData(raw)$title
+
+head(raw)
+# matriz de expresión
+head(exprs(raw))
+# nombres de los genes
+rownames(exprs(raw))
+```
+
+Parece que esta bien, si pasa cualquier cosa debería volver aquí. Guardo raw como objeto de Rdata.
+
+```{r}
+save(raw, file="archivos intermedios/raw.RData")
+```
+

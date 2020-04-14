@@ -1,0 +1,209 @@
+---
+title: "Identificación de genes diferencialmente expresados"
+output: html_notebook
+---
+
+# Identificación de genes diferencialmente expresados
+Mediante modelos lineales
+
+```{r}
+targets <- read.csv("archivos intermedios/selected targets.csv", sep = ";")
+load(file="archivos intermedios/filtrados.Rdata")
+nrow(exprs(filtrados))
+```
+
+Construyo la matriz de diseño y de contraste:
+
+```{r}
+library(limma)
+designMat<- model.matrix(~0+group, pData(filtrados))
+colnames(designMat) <- c("CB", "cHL", "NLPHL")
+designMat
+
+cont.matrix <- makeContrasts (CBvscHL = CB - cHL,
+                              CBvsNLPHL = CB - NLPHL,
+                              cHLvsNLPHL = cHL - NLPHL,
+                              levels=designMat)
+cont.matrix
+```
+
+## Estimación del modelo y selección de genes DGE
+
+```{r}
+# Se ajusta el expresionset a la matriz de diseño
+fit<-lmFit(filtrados, designMat)
+# se hace el contraste usando la matriz de contraste
+fit.main<-contrasts.fit(fit, cont.matrix)
+fit.main<-eBayes(fit.main)
+class(fit.main)
+```
+
+```{r}
+CBvscHL <- topTable (fit.main, number=nrow(fit.main), coef="CBvscHL", adjust="fdr") 
+head(CBvscHL)
+nrow(CBvscHL)
+CBvsNLPHL <- topTable (fit.main, number=nrow(fit.main), coef="CBvsNLPHL", adjust="fdr") 
+head(CBvsNLPHL)
+nrow(CBvsNLPHL)
+cHLvsNLPHL <- topTable (fit.main, number=nrow(fit.main), coef="cHLvsNLPHL", adjust="fdr") 
+head(cHLvsNLPHL)
+nrow(cHLvsNLPHL)
+```
+
+Los rownames son los probeset del microarray, en el siguiente paso se asignarán anotaciones de interés usando esta función propuesta por el profesor:
+
+```{r}
+library(hgu133plus2.db)
+annotatedTopTable <- function(topTab)
+{
+  # saca los rownames a la columna PROBEID
+  topTab <- cbind(PROBEID=rownames(topTab), topTab)
+  myProbes <- rownames(topTab)
+  # de las anotaciones concretas del microarray, elijo estás 3, si quiero otras anotaciones las puedo añadir aquí
+  geneAnots <- select(hgu133plus2.db, myProbes, c("SYMBOL", "ENTREZID", "GENENAME"))
+  # combino la tabla de anotaciones con las tabla de expresión diferencial
+  annotatedTopTab<- merge(x=geneAnots, y=topTab, by="PROBEID")
+return(annotatedTopTab)
+}
+```
+
+```{r}
+anotaciones <- lapply(list(CBvscHL,CBvsNLPHL, cHLvsNLPHL), function(x){annotatedTopTable(x)})
+names(anotaciones) <- c("CBvscHL", "CBvsNLPHL", "cHLvsNLPHL")
+anotaciones$CBvscHL
+write.csv(anotaciones$CBvscHL, file="00 Resultados/CB vs cHL.csv")
+anotaciones$CBvsNLPHL
+write.csv(anotaciones$CBvsNLPHL, file="00 Resultados/CB vs NLPHL.csv")
+anotaciones$cHLvsNLPHL
+write.csv(anotaciones$cHLvsNLPHL, file="00 Resultados/cHL vs NLPHL.csv")
+save(anotaciones, file = "archivos intermedios/anotaciones.Rdata")
+```
+
+Para ver la expresión diferencial general se pueden usar volcano plots, en el eje x se muestra el fold change (reacción a la condiciones) y en el eje y la expresión total. Se remarcan los 10 genes genes más diferencialmente expresados (con p-valor menor).
+
+```{r }
+geneSymbols <- select(hgu133plus2.db, rownames(fit.main), c("SYMBOL"))
+SYMBOLS<- geneSymbols$SYMBOL
+# el parametro highlight es el que marca los genes más diferencialmente expresados.
+volcanoplot(fit.main, coef=1, highlight=10, names=SYMBOLS, 
+            main=paste("Differentially expressed genes", 
+                       colnames(cont.matrix)[1], sep="\n"))
+abline(v=c(-1,1)) # te indica los limites, en mi caso sería (2,-2)
+tiff("00 Resultados/volcano_Results.tiff", res = 300, width = 10, height = 10, units = 'in')
+ volcanoplot(fit.main, coef=1, highlight=10, names=SYMBOLS, 
+            main=paste("Differentially expressed genes", 
+                       colnames(cont.matrix)[1], sep="\n"))
+abline(v=c(-1,1)) # te indica los limites, en mi caso sería (2,-2)
+dev.off()
+```
+
+# Comparaciones múltiples
+
+Comparaciones dos a dos entre las 3 condiciones.
+
+```{r}
+#Se consideran genes expresados diferencialmente aquellos en los que el fold change >abs(1), p-value ajustado <0.1.
+res<-decideTests(fit.main, method="separate", adjust.method="fdr", p.value=0.1, lfc=1)
+res # clase TestResults
+```
+
+"+1" significa que esta sobreexpresado y "-1" significa subexpresado.
+
+```{r}
+# suma por filas los que son diferentes 
+sum.res.rows<-apply(abs(res),1,sum)
+# selecciona de res los que tienen expresion diferencial entre al menos 1 grupo
+res.selected<-res[sum.res.rows!=0,] 
+# número de genes diferencialmente expresados en al menos una comparación:
+nrow(res.selected)
+# resumen de la expresión
+summary(res)
+```
+
+El número de genes que se consideran diferencialmente expresados en cada condicion se puede representar con un diagrama de venn:
+
+```{r}
+head(res.selected)
+vennDiagram (res.selected, cex=0.9)
+# las condiciones se tienen que haber elegido antes
+title("Genes in common between the three comparisons\n Genes selected with FDR < 0.1 and logFC > 1")
+
+tiff("00 Resultados/VennPlot.tiff", res = 150, width = 5.5, height = 5.5, units = 'in')
+  vennDiagram (res.selected[,1:3], cex=0.9)
+  title("Genes in common between the three comparisons\n Genes selected with FDR < 0.1 and logFC > 1")
+dev.off()
+```
+
+Comentario: 
+Las celulas sanas (CB) presentan una expresión diferencial respecto a las celulas tumorales de `r 705+324+326+1324+100+229` genes. Respecto al número de genes diferencialmente expresados las celulas CB tiene una expresión más parecida a las NLPHL (con `r 229+100+1324+326` genes diferentes) que con las cHL (con `r 705+324+1324+326` genes diferentes). De estos genes diferentes, `r 1324 + 326` son genes diferentes en las dos condiciones, por lo que las cHL tienen en total `r (705+324+1324+326) - (229+100+1324+326)` que las cHL.
+
+Al comparar los dos tipos de celulas tumorales vemos que presentan expresión diferencial en `r 84+324+326+100` genes.
+
+Parece que las celulas NHLPL tienen unos patrones de expresión más parecidos a los de las celulas sanas que las cHL, en el siguiente apartado se analizarán los niveles de expresión, para apoyar o rechazar esta hipótesis.
+
+Es una forma de visualizar los genes expresados de forma diferencial, preferiblemente ordenandolos para encontrar clusters de patrón comun.
+
+```{r data4Heatmap}
+# con estas dos lineas se seleccionan los genes del expresionset que presentan expresión diferencial en la comparación multiple (en al menos 1 comparación)
+probesInHeatmap <- rownames(res.selected)
+HMdata <- exprs(filtrados)[rownames(exprs(filtrados)) %in% probesInHeatmap,]
+# es un filtrado del filtrado que hicimos previamente, seleccionando el 20% de los genes más variables
+
+# se hace una anotación como ya se ha visto anteriormente
+geneSymbols <- select(hgu133plus2.db, rownames(HMdata), c("SYMBOL"))
+SYMBOLS<- geneSymbols$SYMBOL
+rownames(HMdata) <- SYMBOLS
+write.csv(HMdata, file = file.path("00 Resultados/data4Heatmap.csv"))
+```
+
+representación sin ordenar
+
+```{r}
+my_palette <- colorRampPalette(c("blue", "red"))(n = 299)
+library(gplots)
+
+heatmap.2(HMdata,
+          Rowv = FALSE, Colv = FALSE,
+          main = "Differentially expressed genes \n FDR < 0,1, logFC >=1",
+          scale = "row", col = my_palette, sepcolor = "white", sepwidth = c(0.05,0.05), cexRow = 0.5, cexCol = 0.9,
+          key = TRUE, keysize = 1.5, density.info = "histogram", 
+          ColSideColors = c(rep("red",12),rep("yellow",5),rep("cyan",5)),
+          tracecol = NULL, dendrogram = "none", srtCol = 30)
+
+tiff("00 Resultados/heatmap no orden.tiff", res = 150, width = 5.5, height = 5.5, units = 'in')
+heatmap.2(HMdata,
+          Rowv = FALSE, Colv = FALSE,
+          main = "Differentially expressed genes \n FDR < 0,1, logFC >=1",
+          scale = "row", col = my_palette, sepcolor = "white", sepwidth = c(0.05,0.05), cexRow = 0.5, cexCol = 0.9,
+          key = TRUE, keysize = 1.5, density.info = "histogram", 
+          ColSideColors = c(rep("red",12),rep("yellow",5),rep("cyan",5)),
+          tracecol = NULL, dendrogram = "none", srtCol = 30)
+dev.off() 
+```
+
+representación ordenada
+
+```{r}
+heatmap.2(HMdata, Rowv = TRUE, Colv = TRUE, dendrogram = "both", # solo se diferencian estos 3 parámetros
+         main = "Differentially expressed genes \n FDR < 0,1, logFC >=1",
+          scale = "row", col = my_palette, sepcolor = "white", sepwidth = c(0.05,0.05), cexRow = 0.5, cexCol = 0.9,
+          key = TRUE, keysize = 1.5, density.info = "histogram", 
+          ColSideColors = c(rep("red",12),rep("yellow",5),rep("cyan",5)),
+          tracecol = NULL, srtCol = 30)
+
+tiff("00 Resultados/heatmap orden.tiff", res = 150, width = 5.5, height = 5.5, units = 'in')
+heatmap.2(HMdata, Rowv = TRUE, Colv = TRUE, dendrogram = "both", # solo se diferencian estos 3 parámetros
+         main = "Differentially expressed genes \n FDR < 0,1, logFC >=1",
+          scale = "row", col = my_palette, sepcolor = "white", sepwidth = c(0.05,0.05), cexRow = 0.5, cexCol = 0.9,
+          key = TRUE, keysize = 1.5, density.info = "histogram", 
+          ColSideColors = c(rep("red",12),rep("yellow",5),rep("cyan",5)),
+          tracecol = NULL, srtCol = 30)
+dev.off()
+```
+
+Se ven claras diferencias entre las celulas sanas y las tumorales, tanto en el dendrograma como en el heatmap, las diferencias entre las celulas tumorales son más sutiles pero se aprecian diferencias en muchos genes, es notable que hay un tipo de celulas cHL más paredicdas a las NLPHL que otras, podría ser interesante (en otro estudio) comparar estos los patrones de expresión de estos dos grupos y contratarlo con tasas de letalidad o recaida, por ejemplo.
+
+
+
+
+

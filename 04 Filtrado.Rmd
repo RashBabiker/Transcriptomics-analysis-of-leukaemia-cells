@@ -1,0 +1,67 @@
+---
+title: "Filtrado de datos"
+output: html_notebook
+---
+
+```{r librerias y datos de partida}
+library(Biobase)
+
+targets <- read.csv("archivos intermedios/selected targets.csv", sep = ";")
+load("archivos intermedios/normalizados.Rdata")
+pData(normalizados)
+exprs(normalizados)
+```
+
+# Filtrado no específico
+
+Para aumentar la potencia de los siguientes analisis, se quitan los genes cuya variación se puede atribuir a la variación aleatoria, genes que seguramente no este diferencialmente expresados.
+
+Los genes diferencialmente expresados presentarán una varianza superior a los que que se expresan homogeneamente. En el siguiente gráfico se representan los genes según su variabilidad, es util para decidir el porcentaje de genes con el que nos quedamos, según evolucione la varianza.
+
+```{r }
+# calculamos la desviación estandar de cada gen
+sds <- apply (exprs(normalizados), 1, sd)
+# ordenamos de más a menos variable
+sdsO<- sort(sds)
+# en el x ponemos del 1:maximo, en el y la desviación estandar
+plot(1:length(sdsO), sdsO, main="Distribution of variability for all genes",
+     sub="Vertical lines represent 85%, 90% and 95% percentiles",
+     xlab="Gene index (from least to most variable)", ylab="Standard deviation")
+
+# línea que marca el porcentaje con el que me quedo, el percentil 90.
+abline(v=length(sds)*0.8, col="red")
+```
+
+He decidido quedarme con el 20% de los genes más variables, 
+
+# para ello tengo que anotar los datos
+
+Las anotaciones están incluidas desde la creaccion del ExpressionSet con los archivos cel
+```{r}
+annotation(normalizados)
+# library(pd.hg.u133.plus.2)
+# annotation(normalizados) <- "pd.hg.u133.plus.2"
+# 
+# filtrados <- nsFilter(normalizados, require.entrez = TRUE, remove.dupEntrez = TRUE, var.filter=TRUE, var.func=IQR, var.cutoff=0.8, filterByQuantile=TRUE)
+```
+
+Dejarlo así da error en el filtrado, por lo que se ha buscado una base de datos análoga que no produzca este error, es la siguiente: Affymetrix Human Genome U133 Plus 2.0 Array annotation data (chip hgu133plus2). A partir de estos datos si se puede filtrar y continuar el análisis.
+
+```{r}
+library(genefilter)
+library(hgu133plus2.db)
+annotation(normalizados) <- "hgu133plus2.db"
+
+filtrados <- nsFilter(normalizados, require.entrez = TRUE,  # Elimina pocillos sin anotacion de Entrez, es decir, no asignados a un gen de esta base de datos.
+                      remove.dupEntrez = T, # La mayoria de los arrays tienen multiples sondas por gen, con esto nos quedamos solo con el valor de la sonda con mayor varianza.
+                      var.filter=TRUE, var.func=IQR, # filtra por varianza 
+                      var.cutoff=0.8, filterByQuantile=TRUE) # se quedan con el 20% de los genes que han superado el primer filtro
+filtrados <-filtrados$eset
+
+save(filtrados, file="archivos intermedios/filtrados.Rdata")
+write.csv(exprs(filtrados), file="00 Resultados/datos filtrado.csv")
+```
+
+Había `r nrow(exprs(normalizados))` genes, se han eliminado en el filtrado `r nrow(exprs(normalizados))-nrow(exprs(filtrados))`, quedando en total `r nrow(exprs(filtrados))`.
+
+Si veo que me he pasado o quedado corto filtrando puedo venir a modificar estas líneas.

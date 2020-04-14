@@ -1,0 +1,23 @@
+;geo_accession;group;title;source_name_ch1;characteristics_ch1;platform_id
+1;GSM312811;cHL;cHL1;classical Hodgkin lymphoma case 1;primary lymphoma cells laser-microdissected from a patient diagnosed with classical Hodgkin lymphoma (cHL);GPL570
+2;GSM312812;cHL;cHL2;classical Hodgkin lymphoma case 2;primary lymphoma cells laser-microdissected from a patient diagnosed with classical Hodgkin lymphoma (cHL);GPL570
+3;GSM312813;cHL;cHL3;classical Hodgkin lymphoma case 3;primary lymphoma cells laser-microdissected from a patient diagnosed with classical Hodgkin lymphoma (cHL);GPL570
+4;GSM312814;cHL;cHL4;classical Hodgkin lymphoma case 4;primary lymphoma cells laser-microdissected from a patient diagnosed with classical Hodgkin lymphoma (cHL);GPL570
+5;GSM312815;cHL;cHL5;classical Hodgkin lymphoma case 5;primary lymphoma cells laser-microdissected from a patient diagnosed with classical Hodgkin lymphoma (cHL);GPL570
+6;GSM312816;cHL;cHL6;classical Hodgkin lymphoma case 6;primary lymphoma cells laser-microdissected from a patient diagnosed with classical Hodgkin lymphoma (cHL);GPL570
+7;GSM312817;cHL;cHL7;classical Hodgkin lymphoma case 7;primary lymphoma cells laser-microdissected from a patient diagnosed with classical Hodgkin lymphoma (cHL);GPL570
+8;GSM312818;cHL;cHL8;classical Hodgkin lymphoma case 8;primary lymphoma cells laser-microdissected from a patient diagnosed with classical Hodgkin lymphoma (cHL);GPL570
+9;GSM312819;cHL;cHL9;classical Hodgkin lymphoma case 9;primary lymphoma cells laser-microdissected from a patient diagnosed with classical Hodgkin lymphoma (cHL);GPL570
+10;GSM312820;cHL;cHL10;classical Hodgkin lymphoma case 10;primary lymphoma cells laser-microdissected from a patient diagnosed with classical Hodgkin lymphoma (cHL);GPL570
+11;GSM312821;cHL;cHL11;classical Hodgkin lymphoma case 11;primary lymphoma cells laser-microdissected from a patient diagnosed with classical Hodgkin lymphoma (cHL);GPL570
+12;GSM312822;cHL;cHL12;classical Hodgkin lymphoma case 12;primary lymphoma cells laser-microdissected from a patient diagnosed with classical Hodgkin lymphoma (cHL);GPL570
+13;GSM312823;NLPHL;NLPHL1;nodular lymphocte-predominant Hodgkin lymphoma case 1;primary lymphoma cells laser-microdissected from a patient diagnosed with nodular lymphocyte-predominant Hodgkin lymphoma (NLPHL);GPL570
+14;GSM312824;NLPHL;NLPHL2;nodular lymphocte-predominant Hodgkin lymphoma case 2;primary lymphoma cells laser-microdissected from a patient diagnosed with nodular lymphocyte-predominant Hodgkin lymphoma (NLPHL);GPL570
+15;GSM312825;NLPHL;NLPHL3;nodular lymphocte-predominant Hodgkin lymphoma case 3;primary lymphoma cells laser-microdissected from a patient diagnosed with nodular lymphocyte-predominant Hodgkin lymphoma (NLPHL);GPL570
+16;GSM312826;NLPHL;NLPHL4;nodular lymphocte-predominant Hodgkin lymphoma case 4;primary lymphoma cells laser-microdissected from a patient diagnosed with nodular lymphocyte-predominant Hodgkin lymphoma (NLPHL);GPL570
+17;GSM312839;NLPHL;NLPHL5;nodular lymphocte-predominant Hodgkin lymphoma case 5;primary lymphoma cells laser-microdissected from a patient diagnosed with nodular lymphocyte-predominant Hodgkin lymphoma (NLPHL);GPL570
+18;GSM312937;CB;CB1;centroblasts donor 1;centroblasts, isolated from tonsils by fluorescence-activated cell sorting;GPL570
+19;GSM312938;CB;CB2;centroblasts donor 2;centroblasts, isolated from tonsils by fluorescence-activated cell sorting;GPL570
+20;GSM312939;CB;CB3;centroblasts donor 3;centroblasts, isolated from tonsils by fluorescence-activated cell sorting;GPL570
+21;GSM312940;CB;CB4;centroblasts donor 4;centroblasts, isolated from tonsils by fluorescence-activated cell sorting;GPL570
+22;GSM312941;CB;CB5;centroblasts donor 5;centroblasts, isolated from tonsils by fluorescence-activated cell sorting;GPL570

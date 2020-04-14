@@ -1,0 +1,47 @@
+---
+title: "PEC1"
+output: html_notebook
+---
+# Obtencion de los targets
+
+No he encontrado un archivo archivo con los targets en la página del GSE, pero puedo obtenerlo usando Geoquery:
+
+```{r}
+library(GEOquery) 
+gse_M <- getGEO("GSE12453", GSEMatrix = T)
+show(gse_M)
+targets_original <- pData(phenoData(gse_M[[1]]))
+
+# confirmo que el archivo original y el que voy a usar contienen la misma información
+
+write.csv2(targets_original, "archivos intermedios/targets.csv", row.names = T)
+```
+
+
+```{r}
+library(tidyverse)
+targets <- read.csv("archivos intermedios/targets.csv", sep = ";")
+rownames(targets) <- targets$X
+targets <- select(targets, -c("X"))
+
+# sum(targets_original != targets) # da 0
+```
+
+Los targets de la tabla son identicos a los de geoquery, por lo que a partir de ahora puedo usar directamente lo del archivo csv, lo que ahorrará tiempo.
+
+# Filtrado
+
+Voy a filtrar las muestras y las caracteristicas que me interesan.
+
+```{r}
+# filtro las muestras y variables de interés
+targets_selected <- targets %>% select(title, geo_accession,source_name_ch1,characteristics_ch1, platform_id) %>% filter (characteristics_ch1 %in% levels(targets$characteristics_ch1)[c(1,7,10)])
+
+# genero la variable grupo que es lo mismo que characteristics_ch1 pero acortado
+targets_selected$group <- c(rep("cHL",12), rep("NLPHL",5), rep("CB",5))
+
+# ordeno
+targets_selected <- targets_selected %>% select(geo_accession, group, title, everything())
+
+write.csv2(targets_selected, "archivos intermedios/selected targets.csv", row.names = T, quote = F)
+```

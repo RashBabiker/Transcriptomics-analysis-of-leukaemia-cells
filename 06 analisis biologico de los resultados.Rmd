@@ -1,0 +1,66 @@
+---
+title: "Analisis biológico de los resultados"
+output: html_notebook
+---
+
+# Análisis de enriquecimiento (enrichment analysis)
+
+En análisis de enriquecimiento parte de la lista de genes expresados diferencialmente en dos condiciones, localiza las funciones, procesos biológicos o pathways más frecuentes. En nuestro caso la lista va a ser la de genes diferencialmente expresados en las comparaciones dos a dos, por lo que nos indicarán los procesos biológicos más afectados por los cambios de expresión.
+
+```{r}
+load("archivos intermedios/anotaciones.Rdata")
+```
+
+El analisis se basa en las anotaciones de la base de datos entrez (https://www.ncbi.nlm.nih.gov/Web/Search/entrezfs.html). Por lo que el primer paso a seguir es obtener los ENTREZ ID de los genes expresados diferencialmente. El análisis necesita un número mínimo de genes para ser fiable, por lo que para hacer estos analisis conviene ser menos restrictivo. En este caso con los requisitos de filtro anteriores (FDR <0,1 y abs(FC)>1) consigo bastantes muestras, por lo que los mantengo.
+
+```{r selectGenes}
+library(hgu133plus2.db)
+
+listOfSelected <-lapply(anotaciones, function(topTab){
+  # Seleccion de genes por p-valor y fold change
+  selectedIDs <- topTab$PROBEID[topTab$adj.P.Val<0.1] 
+  selectedIDs <- topTab$PROBEID[abs(topTab$logFC)<1]
+  # convert the ID to Entrez
+  EntrezIDs<- select(hgu133plus2.db, selectedIDs, c("ENTREZID"))
+  EntrezIDs$ENTREZID
+  
+})
+
+sapply(listOfSelected, length)
+```
+
+```{r}
+mapped_genes2GO <- mappedkeys(org.Hs.egGO)
+mapped_genes2KEGG <- mappedkeys(org.Hs.egPATH)
+mapped_genes <- union(mapped_genes2GO , mapped_genes2KEGG)
+```
+
+# Comparaciones
+
+```{r BiologicalSig}
+library(ReactomePA)
+comparisonsNames <- names(listOfSelected)
+
+#comparacion a comparacion
+for (i in 1:length(listOfSelected)){
+  genesIn <- listOfSelected[[i]]
+  comparison <- comparisonsNames[i]
+  
+  enrich.result <- enrichPathway(gene = genesIn, pvalueCutoff = 0.05, readable = T, pAdjustMethod = "BH", 
+                                 organism = "human", universe = mapped_genes)
+
+  write.csv(as.data.frame(enrich.result), 
+             file =paste0("00 Resultados/ReactomePA.Results.",comparison,".csv"), 
+             row.names = FALSE)
+  tiff(file=paste0("00Resultados/ReactomePABarplot.",comparison,".tiff"), res = 300, width = 8, height = 8, units = 'in')
+    print(barplot(enrich.result, showCategory = 15, font.size = 8, 
+            title = paste0("Reactome Pathway Analysis for\n", comparison)))
+  dev.off()
+  tiff(paste0("00Resultados/ReactomePA.Results.",comparison,".tiff"), res = 300, width = 10, height = 10, units = 'in')
+    print(cnetplot(enrich.result, categorySize = "geneNum", schowCategory = 15, vertex.label.cex = 0.75))
+  dev.off()
+}
+
+```
+
+Da como resultado en csv con el resumen de las pathways, un bar plot que indica la cantidad genes relacionado con cada pathway y un network producido con los genes seleccionados.

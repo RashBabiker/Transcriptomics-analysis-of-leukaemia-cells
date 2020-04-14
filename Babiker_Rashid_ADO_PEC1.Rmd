@@ -1,0 +1,234 @@
+---
+title: "PEC1"
+author: "Rashid Babiker Sánchez"
+date: '`r format(Sys.Date(),"%e de %B, %Y")`'
+output:
+  pdf_document:
+    toc: yes
+    toc_depth: 2
+    df_print: kable
+bibliography: bibliografia/bibliography.bib
+---
+
+\newpage
+
+# Resumen
+
+En el siguiente estudio se usarán los datos de publicaciones sobre leucemia (@Weniger2018, @Brune2008, @Giefing2013) para medir y comparar los patrones de expresión de **células CB**, precursoras sanas de linfocitos B maduros, con dos tipos de linfocitos tumorales: **células NLPHL**, extraídas de pacientes con linfoma de Hodkin con predominio de linfocitos nodulares; y **células cLH** del linfoma de Hodkin clásico. Los datos usados están disponibles en la base de datos GEO, en el siguiente enlace: https://www.ncbi.nlm.nih.gov/geo/query/acc.cgi?acc=GSE12453
+
+El estudio elegido es el siguiente: https://www.ncbi.nlm.nih.gov/geo/query/acc.cgi?acc=GSE12453
+
+El repositorio con todos los análisis realizados se puede consultar en el siguiente enlace https://github.com/RashBabiker/PEC1
+
+# Objetivos
+
+Con este estudio se quieren analizar 2 cuestiones:
+
+* ¿Presentan las células tumorales un patrón de expresión distinto a las células sanas? Esta información tiene valor diagnóstico, se comprobará con mapas de calor ordenados.
+
+En el siguiente estudio se comparan los patrones de expresión de los centroblastos (precursores de linfocitos B maduros, CB), con dos tipos de linfocitos tumorales: celulas LH, extraidas de pacientes con linfoma de Hodkin con predominio de linfocitos nodulares (NLPHL) y celulas cLH del linforma de Hodkin clásico. Los datos usados están disponibles en la base de datos GEO, en el siguiente enlace  https://www.ncbi.nlm.nih.gov/geo/geo2r/?acc=GSE12453
+
+Repositorio online de este proyecto, con el resto de códigos utilizados, material usado y resultados está en el siguiente enlace: https://github.com/RashBabiker/PEC1.git
+
+Con este estudio se quieren analizar 2 cuestiones:
+
+* ¿Presentan las celulas tumorales un patrón de expresión distinto a las celulas sanas? Esta información tiene valor diagnóstico, se comprobará con mapas de calor ordenados.
+
+* ¿Se parecen las células tumorales entre sí? Si es así podrían tener un origen común.
+
+
+\newpage 
+
+# Materiales y Métodos
+
+Se usan 22 muestras: 5 de células sanas, 5 de células NLPHL y 12 de células cHL. 
+Las muestras se obtuvieron de tejido de amígdala de los pacientes y donadores sanos, posteriormente se extrajo el ARN, se amplificó, se retrotranscribió a cDNA, se fragmentó e hibridó con el microarray GeneChip Human Genome U133 Plus. 2.0 de affymetrix. De 67 muestras originales, de distintos tipos de células sanas y afectadas por algún tipo de leucemia, se han elegido todas las muestras de células sanas (5 muestras), NLPHL (5 muestras) y cHL (12 muestras). @Brune2008
+
+A continuación, se exponen los pasos seguidos, también se indica el nombre de los archivos de Rmarkdown del repositorio donde se puede acceder el código usado para la realización de cada tarea con una explicación mucho más detallada:
+
+1. **Obtención de los targets (código en "01 targets.Rmd"): **
+Adaptando la información fenotípica de los datos obtenida usando el paquete GEOquery.
+
+2. **Preparación de las muestras (código en "02 preparacion de las muestras.Rmd"): **
+Primero se descargan los archivos crudos (.cel) de https://www.ncbi.nlm.nih.gov/geo/query/acc.cgi?acc=GSE12453. Una vez obtenidos se combinan con los targets para preparar el ExpressionSet necesario para hacer los análisis.
+
+3. **Control de calidad y normalización de los datos (código en "03 Control de calidad y normalizacion.Rmd"): **
+El análisis de calidad se realiza con el paquete arrayQualityMetrics, una función que construye boxplot, PCAs y otras medidas para analizar la variabilidad de las muestras y detectar valores atípicos, la normalización usada es rma (Robust Multichip Analysis), que sigue tres pasos: corregir ruido de fondo (background), normalizar y sumarizar. 
+
+4. **Filtrado inespecífico (código en "04 Filtrado.Rmd"): **
+Se eliminan los genes cuya variación se puede atribuir a la variación aleatoria para aumentar la potencia de los análisis posteriores, en este paso se han eliminado el 80% de los genes, manteniendo el 20% que presenta mayor variabilidad, a partir de la línea roja en la siguiente figura:
+
+```{r echo=FALSE, message=FALSE, fig.align= "center", fig.height=2.5, fig.width=4}
+library(Biobase)
+targets <- read.csv("archivos intermedios/selected targets.csv", sep = ";")
+load("archivos intermedios/normalizados.Rdata")
+sds <- apply (exprs(normalizados), 1, sd)
+sdsO<- sort(sds)
+plot(1:length(sdsO), sdsO, main="Distribution of variability for all genes",
+     sub="Vertical lines represent 85%, 90% and 95% percentiles",
+     xlab="Gene index (from least to most variable)", ylab="Standard deviation")
+abline(v=length(sds)*0.8, col="red")
+```
+
+5. **Análisis de expresión (código en "05 analisis de expresion.Rmd"): **
+Identificación de genes diferencialmente expresados en alguna condición y comparaciones de expresión entre condiciones usando modelos lineales. representados con diagramas de Venn y mapas de calor.
+
+6. **Análisis biológico de los resultados (código en "06 analisis biologico de los resultados.Rmd"): ** 
+Usando análisis de enriquecimiento, un método que, a partir de una lista de genes, en este caso genes diferencialmente expresados en las distintas comparaciones, localiza las funciones, procesos biológicos o pathways más frecuentes.
+
+<!-- hasta aquí todo bien, esta hasta la ortografía corregida -->
+
+# Resultados y discusión
+
+<!-- 1. Que se obtiene como resultado del análisis -->
+
+La normalización reduce el error entre muestras. La distribución es más homogénea.
+
+```{r echo=FALSE, message=FALSE, fig.align= "center", fig.height=4, fig.width=8}
+library(oligo)
+load ("archivos intermedios/raw.Rdata")
+par(mfrow = c(1,2))
+boxplot(raw, cex.axis=0.5, las=2, 
+         col = c(rep("red", 12), rep("blue", 5), rep("green", 5)),
+         main="Distribución de los \n valores crudos")
+
+boxplot(normalizados, cex.axis=0.5, las=2, 
+         col = c(rep("red", 12), rep("blue", 5), rep("green", 5)),
+         main="Distribución de los \n valores normalizados")
+```
+
+Y reduce el número de valores atípicos.
+
+```{r echo=F, fig.align="center", out.width="450px"}
+knitr::include_graphics("00 Resultados/control de calidad.png")
+```
+
+Estos cambios implican una mayor diferenciación entre grupos según sus niveles de expresión, como se puede comprobar con un análisis de componentes principales
+
+```{r echo=F, message=F, fig.align="center", fig.height=3, fig.width=8}
+library(tidyverse)
+library(ggrepel)
+
+tabla <- exprs(raw)
+
+# escalar los datos es recomendable cuando no quieres que tengan más peso las variables con valores altos que las variables con valores bajos, como es este caso.
+PCA <- prcomp(t(tabla), scale=T) 
+PCs <- data.frame(PCA$x)
+pc1<-round(summary(PCA)$importance[2,1]*100,1)
+pc2<-round(summary(PCA)$importance[2,2]*100,1)
+# pc3<-round(summary(PCA)$importance[2,3]*100,1)
+
+grupo <- pData(raw)$group
+etiqueta <- pData(raw)$title
+
+# main plot
+p1 <- ggplot(PCs,aes(x=PC1, y=PC2)) +
+  theme_classic() +
+  geom_hline(yintercept = 0, color = "gray70") +
+  geom_vline(xintercept = 0, color = "gray70") +
+  geom_point(aes(color = grupo), alpha = 0.55, size = 3) +
+  coord_cartesian(xlim = c(min(PCA$x[,1])-5,max(PCA$x[,1])+5)) +
+  geom_text_repel(aes(y = PC2 + 0.25, label = etiqueta),segment.size = 0.25, size = 3) +
+  labs(x = c(paste("PC1",pc1,"%")),y=c(paste("PC2",pc2,"%"))) +
+  ggtitle("PCA de datos crudos")+
+  theme(plot.title = element_text(hjust = 0.5)) +
+  # pongo colores fácilmente distinguibles por daltónicos
+  scale_color_manual(values= c("#1b9e77", "#d95f02", "#7570b3"))
+
+grupo <- pData(normalizados)$group
+etiqueta <- pData(normalizados)$title
+
+tabla <- exprs(normalizados)
+
+# escalar los datos es recomendable cuando no quieres que tengan más peso las variables con valores altos que las varaibles con valores bajos, como es este caso.
+PCA <- prcomp(t(tabla), scale=T) 
+PCs <- data.frame(PCA$x)
+
+pc1<-round(summary(PCA)$importance[2,1]*100,1)
+pc2<-round(summary(PCA)$importance[2,2]*100,1)
+pc3<-round(summary(PCA)$importance[2,3]*100,1)
+
+# main plot
+p2 <- ggplot(PCs,aes(x=PC1, y=PC2)) +
+  theme_classic() +
+  geom_hline(yintercept = 0, color = "gray70") +
+  geom_vline(xintercept = 0, color = "gray70") +
+  geom_point(aes(color = grupo), alpha = 0.55, size = 3) +
+  coord_cartesian(xlim = c(min(PCA$x[,1])-5,max(PCA$x[,1])+5)) +
+  geom_text_repel(aes(y = PC2 + 0.25, label = etiqueta),segment.size = 0.25, size = 3) +
+  labs(x = c(paste("PC1",pc1,"%")),y=c(paste("PC2",pc2,"%"))) +
+  ggtitle("PCA de datos normalizados")+
+  theme(plot.title = element_text(hjust = 0.5)) +
+  # pongo colores fácilmente distinguibles por daltónicos
+  scale_color_manual(values= c("#1b9e77", "#d95f02", "#7570b3"))
+library(gridExtra)
+grid.arrange(p1, p2, ncol = 2)
+```
+
+El porcentaje de varianza explicada en los datos normalizados es mucho menor. En este caso si que parece que puede ser útil una representación en 3D, para explicar el `r pc1+pc2+pc3`%. 
+
+```{r echo=FALSE, message=FALSE, fig.align= "center", fig.height=4, fig.width=4}
+# varianza explicada por cada componente
+screeplot(PCA)
+```
+
+El PCA en 3D se puede consultar en el siguiente enlace, NLPHL5 y cHL5 tienen patrones de expresión similar, puede que hubiera un error en la caracterizacion de las celulas cHL5:
+
+https://rawcdn.githack.com/RashBabiker/PEC1/483774eb655f385f96165b0fc03351ad4cad7f4d/00%20Resultados/PCA%20normalizado%203D.html#L1
+
+<!-- # importante antes de enviar -->
+<!-- Cuando hayas hecho push, confirma que funciona -->
+
+\newpage
+
+El diagrama de Venn muestra diferencias en el número de genes diferencialmente expresados en las distintas condiciones, las células sanas (CB) presentan una expresión diferencial respecto a las células tumorales de `r 705+324+326+1324+100+229` genes, presentando una expresión más parecida a las NLPHL (con `r 229+100+1324+326` genes diferentes) que con las cHL (con `r 705+324+1324+326` genes diferentes). `r 1324 + 326` genes se expresan distinto en genes tumorales que en sanas. Al comparar los dos tipos de celulas tumorales vemos que presentan expresión diferencial en `r 84+324+326+100` genes. 
+
+```{r echo=F, fig.align="center", fig.height=3.5}
+library(tiff)
+library(grid)
+grid.raster(readTIFF("00 Resultados/VennPlot.tiff"))
+```
+
+La expresión más similar de las células NLPHL se confirma también con el mapa de calor, la sobreexpresión de genes como los del bloque VMA21-PRLT3GLo están menos sobreexpresados en estas células que en las cHL. También se ve una clara diferencia entre tipos de células chL.
+
+```{r echo=F, fig.align="center", fig.height=3.5}
+grid.raster(readTIFF("00 Resultados/heatmap orden.tiff"))
+```
+
+La siguiente tabla muestra los 15 procesos donde más genes se han desregulado en células cHL respecto a las células sanas. La desregularización de genes específicos de linfocitos afecta a 3 procesos distintos: i) la función inmunológica, alterando el procesamiento de antígenos y degranulación de neutrófilos impide el correcto funcionamiento del linfocito; ii) el desequilibrio del ciclo celular por alteraciones en las vías de apoptosis (señalización de NOTCH,BCR, TP53) permite a las células proliferar sin control causando el tumo y iii) alteraciones en el metabolismo energético (Ciclo de Krebs (TCA) y transporte de electrones), permiten una estabilidad a largo plazo aun consumiendo más recursos de los habituales.
+
+```{r echo =F}
+datos <- read.csv("00 Resultados/ReactomePA.Results.CBvscHL.csv")
+datos <- datos[,c(2,9,6)] %>% arrange(-Count)
+head(datos,15)
+```
+
+Al comparar las células sanas con las células NLPHL se ve algo similar, alteraciones en el metabolismo energético, función inmunológica y ciclo celular principalmente.
+
+```{r echo=F}
+datos <- read.csv("00 Resultados/ReactomePA.Results.CBvsNLPHL.csv")
+datos <- datos[,c(2,9,6)] %>% arrange(-Count)
+head(datos,15)
+```
+
+\newpage
+
+La comparación entre los dos tipos de células tumorales muestra expresión diferencial en genes que regulan el ciclo celular y función inmunológica, el número de estos genes diferentes es mayor al observado al comparar las células tumorales por separado con las células sanas, lo que sugiere que los dos tipos de cáncer tienen el mismo efecto, pero actúan de forma muy distinta. Por otro lado, no se ven diferencias en genes del metabolismo energético, por lo que parece que en ese aspecto son similares.
+
+Sería interesante localizar los genes más sobreexpresados relacionados con el metabolismo energético en las comparaciones con las células sanas y si coinciden en los dos tipos de cáncer podría ser una diana terapéutica para tratar estos tipos de cáncer.
+
+```{r echo=F}
+datos <- read.csv("00 Resultados/ReactomePA.Results.cHLvsNLPHL.csv")
+datos <- datos[,c(2,9,6)] %>% arrange(-Count)
+head(datos,15)
+```
+
+# Conclusión: 
+
+Las células sanas muestran un patrón de expresión distinto a las células tumorales, reconocibles mediante los microarrays GeneChip Human Genome U133 Plus. 2.0 de affymetrix, por lo que es un método válido de diagnóstico. Es un método invasivo porque requiere tomar una biopsia de las amígdalas, pero funcional.
+
+Las células tumorales cHL y NLPHL también presentan un patrón de expresión distinto, lo que sugiere un origen distinto del cáncer. Ambos afectan principalmente a los mismos procesos biológicos (metabolismo energético, función inmunológica y ciclo celular) pero de forma distinta. A nivel de metabolismo energético parecen similares, se podría estudiar esto para encontrar dianas terapéuticas.
+
+
+\newpage
+# Bibliografía
